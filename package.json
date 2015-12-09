@@ -59,11 +59,11 @@
     ]
   },
   "browser": {
-    "jquery": "./node_modules/jquery/dist/jquery.js",
-    "materialize": "./node_modules/materialize-css/bin/materialize.js"
+    "jquery": "./node_modules/jquery/dist/jquery.min.js",
+    "materialize": "./node_modules/materialize-css/dist/js/materialize.min.js"
   },
   "browserify-shim": {
     "jquery": "$",
-    "materialize": "materialize"
+    "materialize": { "exports": "Materialize", "depends": ["jquery:$"] }
   }
 }

@@ -5,9 +5,10 @@ import ReactFragment from 'react-addons-create-fragment'
 import socket_client from 'socket.io-client'
 
 import $ from 'jquery'
-import materialize from 'materialize-css/dist/js/materialize.min'
+import Materialize from 'materialize'
 
 import Icons from './components/icons'
+import MultiValueDisplay from './components/multi-value-display'
 
 import PacketAnalyzer from './analyzer'
 import IpTools from './ip-tools'
@@ -221,25 +222,14 @@ class App extends React.Component {
               <td>
                 Clemens
               </td>
-              <td className="tooltipped"
-                  data-position="bottom"
-                  data-delay="50"
-                  data-tooltip={protocol.number + ": " + protocol.name}>
-                {protocol.abbreviation}v{protocol.version}
+              <td>
+                <MultiValueDisplay nice={protocol.abbreviation + "v" + protocol.version} real={protocol.number + ": " + protocol.name} />
               </td>
               <td>
-                <div className="ip-address tooltipped"
-                     data-position="bottom"
-                     data-delay="50"
-                     data-tooltip={IpTools.ipToString(ip)}>
-                  {hostname}
-                </div>
+                <MultiValueDisplay nice={hostname} real={IpTools.ipToString(ip)} />
               </td>
-              <td className="tooltipped"
-                  data-position="bottom"
-                  data-delay="50"
-                  data-tooltip={port}>
-                {port_name}
+              <td>
+                <MultiValueDisplay nice={port_name} real={port} />
               </td>
               <td>{flags}</td>
               <td>
