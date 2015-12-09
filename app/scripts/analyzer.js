@@ -1,5 +1,6 @@
 import _ from 'lodash'
 
+import IpTools from './ip-tools'
 import ProtocolResolver from './util/ipv4-protocol-numbers'
 
 export default class PackageAnalyzer {
@@ -30,7 +31,10 @@ export default class PackageAnalyzer {
     return packageData.protocol === 17;
   }
 
-  isOwnIpAddress(ipv4) {
-    return this.ownIpAddresses.indexOf(ipv4) !== -1;
+  isOwnIpAddress(ip) {
+    if (!(typeof ip == 'string')) {
+      ip = IpTools.ipToString(ip);
+    }
+    return this.ownIpAddresses.indexOf(ip) !== -1;
   }
 };

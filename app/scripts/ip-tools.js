@@ -7,6 +7,10 @@ class IpTools {
 
 
   static ipToString(ip) {
+    if (!ip) {
+      return null; // todo: rethink behavior for empty values
+    }
+
     let padHex = (hex) => hex.length < 2 ? "0" + hex : hex;
 
     if (typeof ip === 'string') {

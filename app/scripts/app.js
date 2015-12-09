@@ -72,6 +72,9 @@ class App extends React.Component {
   }
 
   buildRDNS(ip) {
+    if (!ip) {
+      return;
+    }
     //if (!IpTools.isIPv4(ip)) {
     //  return;
     //}
@@ -86,6 +89,11 @@ class App extends React.Component {
         .then((result) => {
           this.activeRdnsRequests.splice(this.activeRdnsRequests.indexOf(ip), 1);
           let newRdns = $.extend({}, this.state.rdns, {[ip]: result});
+          this.setState({ rdns: newRdns });
+        })
+        .catch((error) => {
+          // console.error(ip, error);
+          let newRdns = $.extend({}, this.state.rdns, {[ip]: null});
           this.setState({ rdns: newRdns });
         });
     }
@@ -119,61 +127,99 @@ class App extends React.Component {
     if (this.state && this.state.packets && this.state.ownIpAddresses) {
       let analyzer = new PacketAnalyzer(this.state.ownIpAddresses);
 
-      let app = this; // todo: scoping
-      function displayIp(ip, port=null) {
-        if (!ip) {
-          return null;
-        }
-
-        if (ip.addr) {
-          ip = IpTools.ipToString(ip);
-          let ip_content = ip;
-
-          if (analyzer.isOwnIpAddress(ip)) {
-            ip_content = <i className="material-icons">person_pin</i>;
-          } else if (app.state.rdns[ip]) {
-            ip_content = app.state.rdns[ip].join(" / ");
-          }
-
-          if (port) {
-            let portName = TcpPortNumbers.get(port);
-            if (portName) {
-              port = portName.name;
-            }
-            port = <span className="badge">{port}</span>;
-          }
-
-          return <div className="ip-address tooltipped"
-                      data-position="bottom"
-                      data-delay="50"
-                      data-tooltip={ip}>
-            {ip_content}
-            {port}
-          </div>;
-        } else {
-          return "N/A"
-        }
-      }
       packageInfo = <table className="highlight">
         <thead>
           <tr>
             <th>Time</th>
+            <th>User</th>
             <th>Protocol</th>
-            <th>Source IP</th>
-            <th>Target IP</th>
+            <th>IP</th>
+            <th>Port</th>
             <th>Flags</th>
             <th>Tools</th>
           </tr>
         </thead>
         <tbody>
           {this.state.packets.map((packet, packetIndex) => {
+            let isSourceRemote = [packet.saddr, packet.daddr].findIndex((address) => !analyzer.isOwnIpAddress(address)) === 0;
+            let ip = isSourceRemote ? packet.saddr : packet.daddr;
+            let port = packet.payload && (isSourceRemote ? packet.payload.sport : packet.payload.dport);
+
+            let hostname = IpTools.ipToString(ip);
+            if (this.state.rdns[hostname]) {
+              hostname = this.state.rdns[hostname].join(" / ");
+            }
+            let port_name = TcpPortNumbers.get(port);
+            if (port_name) {
+              port_name = port_name.name;
+            } else {
+              port_name = port;
+            }
+
             let protocol = analyzer.analyzeProtocol(packet);
+            let url_flag_matchers = [
+              {
+                hostname_matcher: /facebook/i,
+                flag: "Facebook"
+              },
+              {
+                hostname_matcher: /dropbox/i,
+                flag: "Dropbox"
+              },
+              {
+                hostname_matcher: /yahoo/i,
+                flag: "Yahoo"
+              },
+              {
+                hostname_matcher: /spotify/i,
+                flag: "Spotify"
+              },
+              {
+                hostname_matcher: /github/i,
+                flag: "GitHub"
+              },
+              {
+                ports: [17500],
+                flag: "Dropbox"
+              },
+              {
+                ports: [143, 993],
+                flag: "Checking email"
+              },
+              {
+                hostname_matcher: /1e100\.net/i,
+                ports: [993],
+                flag: "GMail"
+              }
+            ];
             let flags = [];
-            // flags.map((flag, index) => <span className="chip" key="index">{flag}</span>)
+            url_flag_matchers.forEach(({hostname_matcher, ports, flag}) => {
+              let hit = true;
+              if (hostname_matcher) {
+                if (!hostname_matcher.test(hostname)) {
+                  hit = false;
+                }
+              }
+              if (ports) {
+                if (ports.indexOf(port) === -1) {
+                  hit = false;
+                }
+              }
+
+              if (hit) {
+                flags.push(flag);
+              }
+            });
+            flags = flags.map((flag, index) =>
+              <span className="chip" key={index}>{flag}</span>
+            );
 
             return <tr key={packet._id}>
               <td>
                 {packet.time}
+              </td>
+              <td>
+                Clemens
               </td>
               <td className="tooltipped"
                   data-position="bottom"
@@ -181,8 +227,20 @@ class App extends React.Component {
                   data-tooltip={protocol.number + ": " + protocol.name}>
                 {protocol.abbreviation}v{protocol.version}
               </td>
-              <td>{displayIp(packet.saddr, packet.payload && packet.payload.sport)}</td>
-              <td>{displayIp(packet.daddr, packet.payload && packet.payload.dport)}</td>
+              <td>
+                <div className="ip-address tooltipped"
+                     data-position="bottom"
+                     data-delay="50"
+                     data-tooltip={IpTools.ipToString(ip)}>
+                  {hostname}
+                </div>
+              </td>
+              <td className="tooltipped"
+                  data-position="bottom"
+                  data-delay="50"
+                  data-tooltip={port}>
+                {port_name}
+              </td>
               <td>{flags}</td>
               <td>
                 <a className="waves-effect waves-teal btn-flat" onClick={this.inspectJson.bind(this, packet)}>

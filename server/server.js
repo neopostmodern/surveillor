@@ -63,16 +63,19 @@ io.on('connection', function(socket){
     });
   });
 
-  socket.on('disconnect', () => {
-    console.log("Conneciton lost - Stopping capture.");
+  function stop_capture() {
     if (pcap_session) {
+      console.log('Stopping capture.');
       pcap_session.close();
+      pcap_session = null;
     }
+  }
+
+  socket.on('disconnect', () => {
+    console.log("Conneciton lost.");
+    stop_capture();
   });
 
-  socket.on('capture-stop', () => {
-    console.log('Stopping capture.');
-    pcap_session.close();
-  });
+  socket.on('capture-stop', stop_capture);
 
 });
