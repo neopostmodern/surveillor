@@ -66,7 +66,12 @@ class App extends React.Component {
         this.buildRDNS(packet.saddr);
       }
       this.buildRDNS(packet.daddr);
-      this.setState({packets: this.state.packets.slice(-50).concat([packet])})
+      this.setState({ packets: this.state.packets.slice(this.state.captureStatus == 'snapshot' ? 0 : -50).concat([packet]) })
+    });
+
+    this.io.on('capture-over', (stats) => {
+      this.setState({ captureStatus: 'off' });
+      console.log(stats);
     });
 
     // this.io.disconnect();
@@ -109,10 +114,19 @@ class App extends React.Component {
     }
   }
 
+  requestSnapshot() {
+    if (this.socket) {
+      this.socket.emit('snapshot');
+      this.setState({ captureStatus: 'snapshot' });
+    } else {
+      alert("Please wait until we can connect.\n[No socket]");
+    }
+  }
+
   releaseCapture() {
     if (this.socket) {
       this.socket.emit('capture-stop');
-      this.setState({ captureStatus: 'off' });
+      this.setState({ captureStatus: 'terminating' });
     } else {
       alert("Please wait until we can connect.\n[No socket]");
     }
@@ -131,6 +145,7 @@ class App extends React.Component {
       packageInfo = <table className="highlight">
         <thead>
           <tr>
+            <th>#</th>
             <th>Time</th>
             <th>User</th>
             <th>Protocol</th>
@@ -170,6 +185,14 @@ class App extends React.Component {
               {
                 hostname_matcher: /yahoo/i,
                 flag: "Yahoo"
+              },
+              {
+                hostname_matcher: /mailbox\.org/i,
+                flag: "Mailbox.org"
+              },
+              {
+                hostname_matcher: /telegram\.org/i,
+                flag: "Telegram"
               },
               {
                 hostname_matcher: /spotify/i,
@@ -217,6 +240,9 @@ class App extends React.Component {
 
             return <tr key={packet._id}>
               <td>
+                {packetIndex + 1}
+              </td>
+              <td>
                 {packet.time}
               </td>
               <td>
@@ -234,7 +260,7 @@ class App extends React.Component {
               <td>{flags}</td>
               <td>
                 <a className="waves-effect waves-teal btn-flat" onClick={this.inspectJson.bind(this, packet)}>
-                  <i className="material-icons">code</i>
+                  <i className="material-icons">library_books</i>
                 </a>
               </td>
             </tr>
@@ -245,10 +271,16 @@ class App extends React.Component {
     let capture_button;
     switch (this.state.captureStatus) {
       case 'off':
-        capture_button = <i className="material-icons" onClick={this.requestCapture.bind(this)}>play_circle_outline</i>;
+        capture_button = [
+          <i key="snapshot" className="material-icons" onClick={this.requestSnapshot.bind(this)}>query_builder</i>,
+          <i key="capture" className="material-icons" onClick={this.requestCapture.bind(this)}>play_circle_outline</i>
+        ];
         break;
       case 'on':
         capture_button = <i className="material-icons" onClick={this.releaseCapture.bind(this)}>pause_circle_outline</i>;
+        break;
+      case 'snapshot':
+        capture_button = <i className="material-icons">more_horiz</i>;
         break;
       default:
         capture_button = <div className="preloader-wrapper big active">
