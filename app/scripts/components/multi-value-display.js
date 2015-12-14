@@ -5,7 +5,7 @@ import CopyToClipboard from '../util/copy-to-clipboard'
 
 class MultiValueDisplay extends React.Component {
   _copyToClipboard(value) {
-    CopyToClipboard(this.props.real)
+    CopyToClipboard(value)
       .then(() => Materialize.toast(`Copied '${ value }' to clipboard!`, 2000))
       .catch(() => Materialize.toast("Can't copy to clipboard.", 4000, "red darken-4"))
   }
