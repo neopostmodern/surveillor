@@ -1,5 +1,9 @@
 "use strict";
 
+// DEBUGGING STRANGE EXITS
+var SegfaultHandler = require('segfault-handler');
+SegfaultHandler.registerHandler();
+
 var _ = require('lodash');
 var OS = require('os');
 var DNS = require('dns');
@@ -32,9 +36,9 @@ var server = http.listen(3000, function () {
 });
 
 io.on('connection', function(socket){
+  var active = false;
   var pcap_session;
   var stats;
-  var tcp_tracker = new PCAP.TCPTracker();
   console.log('A user connected');
 
   let ownIpAddresses = [];
@@ -60,14 +64,9 @@ io.on('connection', function(socket){
     start_capture(size);
   });
 
-  tcp_tracker.on('session', function (session) {
-    console.log("Start of session between " + session.src_name + " and " + session.dst_name);
-    session.on('end', function (session) {
-      console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
-    });
-  });
-
   function start_capture(limit) {
+    active = true;
+
     let hasLimit = !!limit;
     stats = {
       packageCount: 0,
@@ -75,19 +74,43 @@ io.on('connection', function(socket){
     };
 
     pcap_session = PCAP.createSession("", "");
+
+    var tcp_tracker = new PCAP.TCPTracker();
+    tcp_tracker.on('session', function (session) {
+      console.log("Start of session between " + session.src_name + " and " + session.dst_name);
+      session.on('end', function (session) {
+        console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
+      });
+    });
+
     pcap_session.on('packet', function (raw_packet) {
+      if (!active) {
+        return;
+      }
+
       let packet = PCAP.decode.packet(raw_packet);
       // console.dir(packet);
       let data = packet.payload.payload;
       if (_.isObject(data)) {
         data.time = new Date();
         data._id = Math.random();
-        socket.emit("packet", data);
+        socket.emit("packet", JSON.stringify(data));
         stats.packageCount += 1;
 
         if (hasLimit && stats.packageCount >= limit) {
           console.log("Snapshot complete.");
           stop_capture();
+        }
+
+        if ([packet.payload.sport, packet.payload.dport].indexOf(53)) {
+          console.dir(packet);
+          console.log(`DNS - ${ packet.payload.payload.saddr.toString() } - ${ packet.payload.payload.daddr.toString() }`);
+
+          // console.dir(packet.payload.payload);
+          let r = _.get(packet, "payload.payload.payload.data");
+          if (r) {
+            // console.log(r.toString('ascii'));
+          }
         }
 
         // console.log(_.get(packet, "link.ip.tcp.data"));
@@ -101,8 +124,9 @@ io.on('connection', function(socket){
   }
 
   function stop_capture() {
-    if (pcap_session) {
+    if (active) {
       console.log('Stopping capture.');
+      active = false;
       pcap_session.close();
       pcap_session = null;
       stats.endTime = Date.now();
