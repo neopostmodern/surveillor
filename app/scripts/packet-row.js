@@ -1,6 +1,8 @@
 import React from 'react'
 import ClassNames from 'classnames'
 
+import _ from 'lodash'
+
 import MultiValueDisplay from './components/multi-value-display'
 
 import ProtocolAnalyzer from './util/protocol-analyzer'
@@ -10,13 +12,42 @@ import TcpPortNumbers from './util/tcp-port-numbers'
 import IpTools from './ip-tools'
 
 export default class PacketRow extends React.Component {
+  //static propTypes = {
+  //  packet: React.PropTypes.object,
+  //  packetIndex: React.PropTypes.number,
+  //  rnds: React.PropTypes.object,
+  //
+  //  inspectJson: React.PropTypes.func,
+  //  inspectBuffer: React.PropTypes.func
+  //};
+
+  shouldComponentUpdate(nextProps) {
+    if (this.props.packet != nextProps.packet) {
+      return true;
+    }
+    let { ip } = this.getHostInfo();
+    if (this.props.rdns[ip] != nextProps.rdns[ip]) {
+      return true;
+    }
+
+    return false;
+  }
+
+  getHostInfo() {
+    let packet = this.props.packet;
+    let isSourceRemote = [packet.saddr, packet.daddr].findIndex((address) => !OwnIpAddresses.isOwnIpAddress(address)) === 0;
+    return {
+      isSourceRemote: isSourceRemote,
+      ip: isSourceRemote ? packet.saddr : packet.daddr,
+      port: packet.payload && (isSourceRemote ? packet.payload.sport : packet.payload.dport)
+    };
+  }
+
   render() {
     let packet = this.props.packet;
     let RDNS = this.props.rdns;
 
-    let isSourceRemote = [packet.saddr, packet.daddr].findIndex((address) => !OwnIpAddresses.isOwnIpAddress(address)) === 0;
-    let ip = isSourceRemote ? packet.saddr : packet.daddr;
-    let port = packet.payload && (isSourceRemote ? packet.payload.sport : packet.payload.dport);
+    let {isSourceRemote, ip, port} = this.getHostInfo();
 
     let hostname = IpTools.ipToString(ip);
     if (RDNS[hostname]) {
@@ -115,7 +146,7 @@ export default class PacketRow extends React.Component {
         </i>
       </td>
       <td>
-        <MultiValueDisplay nice={protocol.abbreviation + "v" + protocol.version} real={protocol.number + ": " + protocol.name} />
+        <MultiValueDisplay nice={protocol.abbreviation + " (v" + protocol.version + ")"} real={protocol.number + ": " + protocol.name} />
       </td>
       <td>
         <MultiValueDisplay nice={hostname} real={IpTools.ipToString(ip)} />
@@ -127,6 +158,9 @@ export default class PacketRow extends React.Component {
       <td>
         <a className="waves-effect waves-teal btn-flat" onClick={() => this.props.inspectJson(packet)}>
           <i className="material-icons">library_books</i>
+        </a>
+        <a className="waves-effect waves-teal btn-flat" onClick={() => this.props.inspectBuffer(_.get(packet, 'payload.data'))}>
+          <i className="material-icons">local_shipping</i>
         </a>
       </td>
     </tr>;

@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import ReactFragment from 'react-addons-create-fragment'
+import ClassNames from 'classnames'
 
 import socket_client from 'socket.io-client'
 
@@ -10,6 +11,8 @@ import Materialize from 'materialize'
 import PacketRow from './packet-row'
 
 import Icons from './components/icons'
+import Preloader from './components/preloader'
+import InspectBuffer from './components/inspect-buffer'
 
 import OwnIpAddresses from './util/own-ip-addresses'
 import IpTools from './ip-tools'
@@ -24,6 +27,7 @@ class App extends React.Component {
 
     this.state = {
       packets: [],
+      numberPacketsToDisplay: 10,
       rdns: {},
       captureStatus: 'waiting-for-socket'
     };
@@ -51,7 +55,7 @@ class App extends React.Component {
           return address;
         }
 
-        // hack to re-formatt IPv6 to "our style"
+        // hack to re-format IPv6 to "our style"
         return address.split(':').map((part) => '0000'.substring(0, 4 - part.length) + part).join(":");
       }));
 
@@ -62,6 +66,7 @@ class App extends React.Component {
       if (this.state.captureStatus === 'loading') {
         this.setState({ captureStatus: 'on' });
       }
+      packet = JSON.parse(packet);
       if (packet.saddr) {
         this.buildRDNS(packet.saddr);
       }
@@ -69,16 +74,12 @@ class App extends React.Component {
       if (this.state.captureStatus == 'snapshot') {
         this.snapShotBuffer.push(packet);
       } else {
-        this.setState({packets: this.state.packets.slice(-50).concat([packet])});
+        this.setState({packets: this.state.packets.concat([packet])});
       }
     });
 
     this.io.on('capture-over', (stats) => {
-      if (this.state.captureStatus == 'snapshot') {
-        this.setState({ packets: this.snapShotBuffer });
-      }
-      this.setState({ captureStatus: 'off' });
-      this.stats = stats;
+      this.endCapture(stats)
     });
 
     // this.io.disconnect();
@@ -141,6 +142,22 @@ class App extends React.Component {
     }
   }
 
+  endCapture(stats) {
+    if (this.state.captureStatus == 'snapshot') {
+      this.setState({ packets: this.snapShotBuffer });
+    }
+    this.setState({ captureStatus: 'off' });
+    this.stats = stats;
+  }
+
+  abortCapture() {
+    if (this.state.captureStatus == 'on') {
+      this.releaseCapture();
+    }
+
+    this.endCapture({ 'error': "Capture was exited preliminarily by user."});
+  }
+
   clear() {
     this.setState({
       packets: []
@@ -156,9 +173,27 @@ class App extends React.Component {
     $('#json-modal').openModal();
   }
 
+  inspectBuffer(buffer) {
+    this.setState({ bufferToInspect: buffer });
+    $('#buffer-modal').openModal();
+  }
+
   render() {
     let packageInfo;
     if (this.state && this.state.packets && this.state.ownIpAddressesReady) {
+      let packages;
+      if (this.state.packets.length > 0) {
+        packages = this.state.packets.slice(0, this.state.numberPacketsToDisplay).map((packet, packetIndex) =>
+          <PacketRow key={packet._id}
+                     packet={packet}
+                     packetIndex={packetIndex}
+                     rdns={this.state.rdns}
+                     inspectJson={this.inspectJson.bind(this)}
+                     inspectBuffer={this.inspectBuffer.bind(this)}/>
+        );
+      } else {
+        packages = <tr><td colSpan="9"><i className="grey-text">No packets captured.</i></td></tr>;
+      }
       packageInfo = <table className="highlight">
         <thead>
           <tr>
@@ -174,13 +209,7 @@ class App extends React.Component {
           </tr>
         </thead>
         <tbody>
-          {this.state.packets.map((packet, packetIndex) =>
-            <PacketRow key={packet._id}
-                       packet={packet}
-                       packetIndex={packetIndex}
-                       rdns={this.state.rdns}
-                       inspectJson={this.inspectJson.bind(this)} />
-          )}
+          {packages}
         </tbody>
       </table>;
     }
@@ -199,17 +228,7 @@ class App extends React.Component {
         capture_button = <i className="material-icons">more_horiz</i>;
         break;
       default:
-        capture_button = <div className="preloader-wrapper big active">
-          <div className="spinner-layer spinner-blue-only">
-            <div className="circle-clipper left">
-              <div className="circle"></div>
-            </div><div className="gap-patch">
-            <div className="circle"></div>
-          </div><div className="circle-clipper right">
-            <div className="circle"></div>
-          </div>
-          </div>
-        </div>;
+        capture_button = <Preloader key="preloader" />;
     }
 
     return <div>
@@ -219,11 +238,34 @@ class App extends React.Component {
             <h1>The Price of Free WiFi - Surveillor</h1>
             {capture_button}
           </header>
-          <div>
-            <a className="btn" onClick={this.clear.bind(this)}><i className="material-icons">delete</i></a>
-            <a className="btn" onClick={this.showStats.bind(this)}><i className="material-icons">trending_up</i></a>
+          <div className="action-bar">
+            <a className={ClassNames('btn', {'disabled': this.state.packets.length === 0})}
+               onClick={this.clear.bind(this)}>
+              <i className="material-icons">delete</i>
+            </a>
+
+            <a className={ClassNames('btn', {'disabled': !this.stats})}
+               onClick={this.showStats.bind(this)}>
+              <i className="material-icons">trending_up</i>
+            </a>
+
+            <a className={ClassNames('btn', {'disabled': this.state.captureStatus == 'off'})}
+               onClick={this.abortCapture.bind(this)}>
+              <i className="material-icons">call_end</i>
+            </a>
           </div>
           {packageInfo}
+          <div className="action-bar" style={{marginTop: '2rem'}}>
+            <a className={ClassNames('btn', {'disabled': this.state.packets.length <= this.state.numberPacketsToDisplay})}
+               onClick={(() => this.setState({ numberPacketsToDisplay: this.state.numberPacketsToDisplay + 50 })).bind(this)}>
+              <i className="material-icons">expand_more</i>
+            </a>
+
+            <a className={ClassNames('btn', {'disabled': this.state.packets.length <= this.state.numberPacketsToDisplay})}
+               onClick={(() => this.setState({ numberPacketsToDisplay: this.state.packets.length })).bind(this)}>
+              <i className="material-icons">all_inclusive</i>
+            </a>
+          </div>
         </div>
       </div>
       <div id="json-modal" className="modal modal-fixed-footer">
@@ -237,11 +279,23 @@ class App extends React.Component {
           <a href="#!" className=" modal-action modal-close waves-effect waves-green btn-flat">Done</a>
         </div>
       </div>
+      <div id="buffer-modal" className="modal modal-fixed-footer">
+        <div className="modal-content">
+          <h4>Inspect buffer</h4>
+          <InspectBuffer buffer={this.state.bufferToInspect} />
+        </div>
+        <div className="modal-footer">
+          <a href="#!" className=" modal-action modal-close waves-effect waves-green btn-flat">Done</a>
+        </div>
+      </div>
     </div>;
   }
 
   componentDidUpdate() {
-    $('.tooltipped').tooltip({delay: 50});
+    if (this.state.captureStatus == 'off') {
+      // don't update tooltips in live-capture since it slows us down too much
+      $('.tooltipped').tooltip({delay: 50});
+    }
   }
 }
 
