@@ -8,13 +8,13 @@ import socket_client from 'socket.io-client'
 import $ from 'jquery'
 import Materialize from 'materialize'
 
-import PacketRow from './packet-row'
+import PacketTable from './packet-table'
 
 import Icons from './components/icons'
 import Preloader from './components/preloader'
 import InspectBuffer from './components/inspect-buffer'
 
-import OwnIpAddresses from './util/own-ip-addresses'
+import IdentityProvider from './util/identity-provider'
 import IpTools from './ip-tools'
 
 const SERVER = "http://localhost:3000/";
@@ -50,7 +50,7 @@ class App extends React.Component {
     });
 
     this.io.on('ip-addresses', (ownIpAddresses) => {
-      OwnIpAddresses.setOwnIpAddresses(ownIpAddresses.map((address) => {
+      IdentityProvider.addUser('Clemens', ownIpAddresses.map((address) => {
         if (IpTools.isIPv4(address)) {
           return address;
         }
@@ -179,40 +179,6 @@ class App extends React.Component {
   }
 
   render() {
-    let packageInfo;
-    if (this.state && this.state.packets && this.state.ownIpAddressesReady) {
-      let packages;
-      if (this.state.packets.length > 0) {
-        packages = this.state.packets.slice(0, this.state.numberPacketsToDisplay).map((packet, packetIndex) =>
-          <PacketRow key={packet._id}
-                     packet={packet}
-                     packetIndex={packetIndex}
-                     rdns={this.state.rdns}
-                     inspectJson={this.inspectJson.bind(this)}
-                     inspectBuffer={this.inspectBuffer.bind(this)}/>
-        );
-      } else {
-        packages = <tr><td colSpan="9"><i className="grey-text">No packets captured.</i></td></tr>;
-      }
-      packageInfo = <table className="highlight">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Time</th>
-            <th>User</th>
-            <th><i className="material-icons">swap_horiz</i></th>
-            <th>Protocol</th>
-            <th>IP</th>
-            <th>Port</th>
-            <th>Flags</th>
-            <th>Tools</th>
-          </tr>
-        </thead>
-        <tbody>
-          {packages}
-        </tbody>
-      </table>;
-    }
     let capture_button;
     switch (this.state.captureStatus) {
       case 'off':
@@ -254,18 +220,14 @@ class App extends React.Component {
               <i className="material-icons">call_end</i>
             </a>
           </div>
-          {packageInfo}
-          <div className="action-bar" style={{marginTop: '2rem'}}>
-            <a className={ClassNames('btn', {'disabled': this.state.packets.length <= this.state.numberPacketsToDisplay})}
-               onClick={(() => this.setState({ numberPacketsToDisplay: this.state.numberPacketsToDisplay + 50 })).bind(this)}>
-              <i className="material-icons">expand_more</i>
-            </a>
-
-            <a className={ClassNames('btn', {'disabled': this.state.packets.length <= this.state.numberPacketsToDisplay})}
-               onClick={(() => this.setState({ numberPacketsToDisplay: this.state.packets.length })).bind(this)}>
-              <i className="material-icons">all_inclusive</i>
-            </a>
-          </div>
+          {
+            (this.state && this.state.packets && this.state.ownIpAddressesReady)
+              ? <PacketTable packets={this.state.packets}
+                             rdns={this.state.rdns}
+                             inspectJson={this.inspectJson.bind(this)}
+                             inspectBuffer={this.inspectBuffer.bind(this)} />
+              : "Loading..."
+          }
         </div>
       </div>
       <div id="json-modal" className="modal modal-fixed-footer">
