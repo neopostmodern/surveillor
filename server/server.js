@@ -102,17 +102,6 @@ io.on('connection', function(socket){
           stop_capture();
         }
 
-        if ([packet.payload.sport, packet.payload.dport].indexOf(53)) {
-          console.dir(packet);
-          console.log(`DNS - ${ packet.payload.payload.saddr.toString() } - ${ packet.payload.payload.daddr.toString() }`);
-
-          // console.dir(packet.payload.payload);
-          let r = _.get(packet, "payload.payload.payload.data");
-          if (r) {
-            // console.log(r.toString('ascii'));
-          }
-        }
-
         // console.log(_.get(packet, "link.ip.tcp.data"));
 
         // IPv6 + TCP = _.get(packet, "payload.payload.payload.constructor.name") == "TCP"
