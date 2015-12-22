@@ -30,7 +30,6 @@ class App extends React.Component {
 
     this.state = {
       packets: {},
-      numberPacketsToDisplay: 10,
       rdns: {},
       captureStatus: 'waiting-for-socket',
       selectedHosts: [],
@@ -272,7 +271,9 @@ class App extends React.Component {
     if (this.state && this.state.packets && this.state.ownIpAddressesReady) {
       if (this.state.hostToInspect) {
         let selectedPackets = this.state.packets[this.state.hostToInspect];
-        content = <PacketTable packets={selectedPackets}
+        content = <PacketTable
+                       packets={selectedPackets}
+                       numberPacketsToDisplay={10}
                        rdns={this.state.rdns}
                        inspectJson={this.inspectJson.bind(this)}
                        inspectBuffer={this.inspectBuffer.bind(this)}/>

@@ -4,12 +4,19 @@ import ClassNames from 'classnames'
 import PacketRow from './packet-row'
 
 export default class PacketTable extends React.Component {
-  constructor() {
-    super();
+  constructor(props) {
+    super(props);
+    console.dir(props);
 
-    // todo: "listen" to prop changes & update state
     this.state = {
-      numberPacketsToDisplay: 10 // todo: access props (from constructor?), this.props.numberPacketsToDisplay
+      numberPacketsToDisplay: props.numberPacketsToDisplay || 10
+    }
+  }
+
+  componentWillReceiveProps(props) {
+    if (props.numberPacketsToDisplay !== this.props.numberPacketsToDisplay) {
+      // when property `numberPacketsToDisplay` changes, override current value (in state)
+      this.setState({ numberPacketsToDisplay: props.numberPacketsToDisplay });
     }
   }
 
@@ -17,8 +24,7 @@ export default class PacketTable extends React.Component {
     let rendered_packets;
     let packets = this.props.packets;
     if (packets.length > 0) {
-      // todo: re-enable length-limiting `.slice(0, this.state.numberPacketsToDisplay)`
-      rendered_packets = packets.map((packet, packetIndex) =>
+      rendered_packets = packets.slice(0, this.state.numberPacketsToDisplay).map((packet, packetIndex) =>
         <PacketRow key={packet.packet._id}
                    packet={packet}
                    packetIndex={packetIndex}
