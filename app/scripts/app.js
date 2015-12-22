@@ -1,12 +1,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import ReactFragment from 'react-addons-create-fragment'
+import ReactUpdate from 'react-addons-update'
 import ClassNames from 'classnames'
 
 import socket_client from 'socket.io-client'
 
 import $ from 'jquery'
 import Materialize from 'materialize'
+import _ from 'lodash'
 
 import PacketTable from './packet-table'
 
@@ -14,6 +16,7 @@ import Icons from './components/icons'
 import Preloader from './components/preloader'
 import InspectBuffer from './components/inspect-buffer'
 
+import Packet from './util/packet'
 import IdentityProvider from './util/identity-provider'
 import IpTools from './ip-tools'
 
@@ -26,10 +29,12 @@ class App extends React.Component {
     this.ipTools = new IpTools(SERVER);
 
     this.state = {
-      packets: [],
+      packets: {},
       numberPacketsToDisplay: 10,
       rdns: {},
-      captureStatus: 'waiting-for-socket'
+      captureStatus: 'waiting-for-socket',
+      selectedHosts: [],
+      hostToInspect: null
     };
 
     this.activeRdnsRequests = [];
@@ -50,7 +55,7 @@ class App extends React.Component {
     });
 
     this.io.on('ip-addresses', (ownIpAddresses) => {
-      IdentityProvider.addUser('Clemens', ownIpAddresses.map((address) => {
+      IdentityProvider.addUser('Surveillor', ownIpAddresses.map((address) => {
         if (IpTools.isIPv4(address)) {
           return address;
         }
@@ -74,7 +79,7 @@ class App extends React.Component {
       if (this.state.captureStatus == 'snapshot') {
         this.snapShotBuffer.push(packet);
       } else {
-        this.setState({packets: this.state.packets.concat([packet])});
+        this.processPacket(packet);
       }
     });
 
@@ -83,6 +88,22 @@ class App extends React.Component {
     });
 
     // this.io.disconnect();
+  }
+
+  processPacket(packet) {
+    let wrappedPacket = new Packet(packet);
+    let hostIp = IpTools.ipToString(wrappedPacket.ip);
+    let newPacketState;
+    if (this.state.packets[hostIp]) {
+      newPacketState = ReactUpdate(this.state.packets, {
+        [hostIp]: { $push: [ wrappedPacket ] }
+      });
+    } else {
+      newPacketState = ReactUpdate(this.state.packets, {
+        $merge: { [hostIp]: [ wrappedPacket ]}
+      })
+    }
+    this.setState({packets: newPacketState});
   }
 
   buildRDNS(ip) {
@@ -178,29 +199,112 @@ class App extends React.Component {
     $('#buffer-modal').openModal();
   }
 
+  toggleHostSelected(host) {
+    let hostIndex = this.state.selectedHosts.indexOf(host);
+    if (hostIndex === -1) {
+      this.setState({ selectedHosts: ReactUpdate(this.state.selectedHosts, { $push: [ host ] }) });
+    } else {
+      this.setState({ selectedHosts: ReactUpdate(this.state.selectedHosts, { $splice: [ [ hostIndex, 1 ] ] }) });
+    }
+  }
+
+  inspectHost(host) {
+    this.setState({ hostToInspect: host });
+  }
+  uninspectHost() {
+    this.setState({ hostToInspect: null });
+  }
+
   render() {
     let capture_button;
     switch (this.state.captureStatus) {
       case 'off':
         capture_button = [
-          <i key="snapshot" className="material-icons" onClick={this.requestSnapshot.bind(this)}>query_builder</i>,
-          <i key="capture" className="material-icons" onClick={this.requestCapture.bind(this)}>play_circle_outline</i>
+          <i key="snapshot" className="material-icons capture-actions" onClick={this.requestSnapshot.bind(this)}>query_builder</i>,
+          <i key="capture" className="material-icons capture-actions" onClick={this.requestCapture.bind(this)}>play_circle_outline</i>
         ];
         break;
       case 'on':
-        capture_button = <i className="material-icons" onClick={this.releaseCapture.bind(this)}>pause_circle_outline</i>;
+        capture_button = <i className="material-icons capture-actions" onClick={this.releaseCapture.bind(this)}>pause_circle_outline</i>;
         break;
       case 'snapshot':
-        capture_button = <i className="material-icons">more_horiz</i>;
+        capture_button = <i className="material-icons capture-actions">more_horiz</i>;
         break;
       default:
-        capture_button = <Preloader key="preloader" />;
+        capture_button = <div className="capture-actions"><Preloader key="preloader capture" /></div>;
+    }
+
+    let selectedPacketGroups = this.state.selectedHosts.map((host) => this.state.packets[host]);
+    let selectedPacketsAnalysis;
+    if (selectedPacketGroups.length > 0) {
+      let count = selectedPacketGroups.map((group) => group.length).reduce((a, b) => a + b, 0);
+      let ports = [];
+      selectedPacketGroups.forEach((group) => group.forEach((packet) => {
+        if (ports.indexOf(packet.port) === -1) {
+          ports.push(packet.port);
+        }
+      }));
+
+      selectedPacketsAnalysis =
+        <div className={ClassNames("col", "l3", "card", { hide: this.state.selectedHosts.length === 0 })}>
+          <div className="card-action">
+            <span className="card-title">Details {this.state.selectedHosts.length > 1 ? `(${ this.state.selectedHosts.length })` : ''}</span>
+            <table>
+              <tbody>
+              <tr>
+                <td>Packets</td>
+                <td>{count}</td>
+              </tr>
+              <tr>
+                <td>Ports</td>
+                <td>{ports.join(", ")}</td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="card-action">
+            <a href="#" onClick={this.inspectHost.bind(this, this.state.selectedHosts[0])}>inspect</a>
+          </div>
+        </div>
+    }
+
+    let content;
+    if (this.state && this.state.packets && this.state.ownIpAddressesReady) {
+      if (this.state.hostToInspect) {
+        let selectedPackets = this.state.packets[this.state.hostToInspect];
+        content = <PacketTable packets={selectedPackets}
+                       rdns={this.state.rdns}
+                       inspectJson={this.inspectJson.bind(this)}
+                       inspectBuffer={this.inspectBuffer.bind(this)}/>
+      } else {
+        content = <div className="host-list--wrapper row">
+          <div className={ClassNames("col", "l" + (this.state.selectedHosts.length === 0 ? 12 : 9), "host-list" )}>
+            {_.map(this.state.packets, (packets, host) => {
+              let hostName = this.state.rdns[host];
+              if (hostName) {
+                hostName = hostName[0].split('.').slice(-2).join('.');
+              } else {
+                hostName = host;
+              }
+              return <div className={ClassNames("host-list--item", { selected: this.state.selectedHosts.indexOf(host) !== -1 })}
+                          key={host}
+                          onClick={this.toggleHostSelected.bind(this, host)}
+                          onDoubleClick={this.inspectHost.bind(this, host)}>{hostName}</div>;
+            })}
+          </div>
+          {selectedPacketsAnalysis}
+        </div>;
+      }
+    } else {
+      content = "Loading...";
     }
 
     return <div>
       <div className="row">
         <div className="l12 col">
           <header>
+            <i className={ClassNames("material-icons", "navigation", { hide: !this.state.hostToInspect})}
+               onClick={this.uninspectHost.bind(this)}>arrow_back</i>
             <h1>The Price of Free WiFi - Surveillor</h1>
             {capture_button}
           </header>
@@ -220,14 +324,7 @@ class App extends React.Component {
               <i className="material-icons">call_end</i>
             </a>
           </div>
-          {
-            (this.state && this.state.packets && this.state.ownIpAddressesReady)
-              ? <PacketTable packets={this.state.packets}
-                             rdns={this.state.rdns}
-                             inspectJson={this.inspectJson.bind(this)}
-                             inspectBuffer={this.inspectBuffer.bind(this)} />
-              : "Loading..."
-          }
+          {content}
         </div>
       </div>
       <div id="json-modal" className="modal modal-fixed-footer">

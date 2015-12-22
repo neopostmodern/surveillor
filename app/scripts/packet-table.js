@@ -9,7 +9,7 @@ export default class PacketTable extends React.Component {
 
     // todo: "listen" to prop changes & update state
     this.state = {
-      numberPacketsToDisplay: 10 // todo: access props, this.props.numberPacketsToDisplay
+      numberPacketsToDisplay: 10 // todo: access props (from constructor?), this.props.numberPacketsToDisplay
     }
   }
 
@@ -19,7 +19,7 @@ export default class PacketTable extends React.Component {
     if (packets.length > 0) {
       // todo: re-enable length-limiting `.slice(0, this.state.numberPacketsToDisplay)`
       rendered_packets = packets.map((packet, packetIndex) =>
-        <PacketRow key={packet._id}
+        <PacketRow key={packet.packet._id}
                    packet={packet}
                    packetIndex={packetIndex}
                    rdns={this.props.rdns}

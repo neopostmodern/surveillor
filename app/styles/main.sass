@@ -6,18 +6,29 @@ body
 
 header
   display: flex
-  justify-content: space-between
   align-items: center
+  vertical-align: center
+
+  margin-top: 2rem
+  margin-bottom: 1rem
+
+  h1
+    margin: 0
 
   .material-icons
     font-size: 5rem
 
     cursor: pointer
 
-    &:first-of-type
-      margin-left: auto
+  // hack to target only first with class
+  .capture-actions
+    margin-left: auto
+  .capture-actions ~ .capture-actions
+    margin-left: 0
 
 .action-bar
+  text-align: right
+
   a
     margin-right: 1rem
 
@@ -33,3 +44,5 @@ header
 
 .icon-between-text
   font-size: 70%
+
+@import host-list

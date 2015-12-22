@@ -12,26 +12,21 @@ import TcpPortNumbers from './util/tcp-port-numbers'
 import IpTools from './ip-tools'
 
 export default class PacketRow extends React.Component {
-  //static propTypes = {
-  //  packet: React.PropTypes.object,
-  //  packetIndex: React.PropTypes.number,
-  //  rnds: React.PropTypes.object,
-  //
-  //  inspectJson: React.PropTypes.func,
-  //  inspectBuffer: React.PropTypes.func
-  //};
+  static propTypes = {
+    packet: React.PropTypes.object,
+    packetIndex: React.PropTypes.number,
+    rnds: React.PropTypes.object,
+
+    inspectJson: React.PropTypes.func,
+    inspectBuffer: React.PropTypes.func
+  }
 
   shouldComponentUpdate(nextProps) {
     if (this.props.packet != nextProps.packet) {
       return true;
     }
     let packet = nextProps.packet;
-    let identity = IdentityProvider.whoIs(packet.saddr, packet.daddr);
-    if (!identity) {
-      return true; // todo: what? what does an unkown identity mean to rerendering? did we know more before?
-    }
-    let ip = identity.matchedAddress;
-    if (this.props.rdns[ip] != nextProps.rdns[ip]) {
+    if (this.props.rdns[packet.ip] != nextProps.rdns[packet.ip]) {
       return true;
     }
 
@@ -39,20 +34,17 @@ export default class PacketRow extends React.Component {
   }
 
   render() {
-    let packet = this.props.packet;
+    let wrappedPacket = this.props.packet;
+    let packet = wrappedPacket.packet;
     let RDNS = this.props.rdns;
 
-    let identityInformation = IdentityProvider.whoIs(packet.saddr, packet.daddr);
-    if (!identityInformation) {
+    if (wrappedPacket.unidentified) {
       return <tr><td colSpan="8">Can't identify.</td></tr>
     }
-    let isSourceRemote = identityInformation.isDestination; // if the identity is the destination...
-    let ip = isSourceRemote ? packet.saddr : packet.daddr;
-    let port = packet.payload && (isSourceRemote ? packet.payload.sport : packet.payload.dport);
-    let user = {
-      name: identityInformation.identity.name,
-      matchedAddress: identityInformation.matchedAddress
-    };
+    let isSourceRemote = wrappedPacket.isSourceRemote; // if the identity is the destination...
+    let ip = wrappedPacket.ip;
+    let port = wrappedPacket.port;
+    let user = wrappedPacket.user;
 
     let hostname = IpTools.ipToString(ip);
     if (RDNS[hostname]) {
