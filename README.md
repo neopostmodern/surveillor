@@ -1,7 +1,7 @@
 # Surveillor
 
 This tool is in progress.  
-It will eventually be an artistic traffick analyzer for [The Price of Free WiFi](http://neopostmodern.com/ThePriceOfFreeWiFi)
+It will eventually be an artistic traffick analyzer for [The Price of Free WiFi](http://neopostmodern.com/ThePriceOfFreeWifi)
 
 ### Code structure
 
